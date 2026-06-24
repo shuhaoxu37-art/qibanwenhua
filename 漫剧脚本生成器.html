@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 漫剧脚本 & 提示词生成器</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #eee; padding: 20px; line-height: 1.6;
+  }
+  .wrap { max-width: 800px; margin: 0 auto; }
+  h1 { text-align: center; margin-bottom: 6px; font-size: 26px;
+       background: linear-gradient(90deg,#ffd700,#ff6b6b);
+       -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { text-align: center; color: #888; margin-bottom: 24px; font-size: 13px; }
+  .card { background: rgba(255,255,255,0.06); border-radius: 14px;
+          padding: 20px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.08); }
+  label { display: block; margin-bottom: 8px; font-weight: bold; color: #ffd700; }
+  textarea, input[type=text] {
+    width: 100%; padding: 12px; border-radius: 8px; border: none;
+    background: rgba(0,0,0,0.3); color: #fff; font-size: 15px; resize: vertical;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+  .opt { flex: 1; min-width: 90px; }
+  .opt span { display:block; font-size:12px; color:#aaa; margin-bottom:6px; }
+  select { width: 100%; padding: 10px; border-radius: 8px; border: none;
+           background: rgba(0,0,0,0.3); color: #fff; font-size: 14px; }
+  .btn { display: block; width: 100%; padding: 15px; margin-top: 16px;
+         background: linear-gradient(90deg,#ff6b6b,#ffd700); color: #1a1a2e;
+         font-size: 18px; font-weight: bold; border: none; border-radius: 10px;
+         cursor: pointer; transition: transform .1s; }
+  .btn:active { transform: scale(0.98); }
+  .shot { background: rgba(255,255,255,0.05); border-left: 3px solid #ffd700;
+          border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+  .shot h3 { color: #ff6b6b; margin-bottom: 8px; font-size: 16px; }
+  .field { margin: 8px 0; }
+  .field b { color: #ffd700; font-size: 13px; }
+  .prompt-box { background: rgba(0,0,0,0.4); padding: 10px; border-radius: 6px;
+                margin-top: 4px; font-size: 13px; color: #9fe; word-break: break-all; }
+  .copy { float: right; background: #ffd700; color: #1a1a2e; border: none;
+          padding: 3px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+  .meta { color: #888; font-size: 12px; }
+  #out { margin-top: 20px; }
+  .tip { background: rgba(255,215,0,0.1); padding: 12px; border-radius: 8px;
+         font-size: 13px; color: #ffd700; margin-top: 16px; }
+  .toolbar { display:flex; gap:10px; margin-bottom:14px; }
+  .toolbar button { flex:1; padding:10px; border:none; border-radius:8px;
+         background: rgba(255,255,255,0.1); color:#fff; cursor:pointer; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎬 AI 漫剧脚本 & 提示词生成器</h1>
+  <p class="sub">输入一句点子 → 自动生成分镜脚本 + 每个镜头的出图提示词</p>
+
+  <div class="card">
+    <label>① 你的故事点子</label>
+    <textarea id="idea" rows="3" placeholder="例：穷小子摆摊抽卡，抽到了一条上古神龙，从此命运逆转，逆袭成为都市大佬。"></textarea>
+
+    <div class="row">
+      <div class="opt"><span>画面风格</span>
+        <select id="style">
+          <option value="guofeng">国风水墨</option>
+          <option value="xianxia">仙侠玄幻</option>
+          <option value="cyber">赛博朋克</option>
+          <option value="anime">日系二次元</option>
+          <option value="3d">3D国漫</option>
+          <option value="realistic">写实电影感</option>
+        </select>
+      </div>
+      <div class="opt"><span>视频时长</span>
+        <select id="dur">
+          <option value="6">约30秒(6镜)</option>
+          <option value="8" selected>约45秒(8镜)</option>
+          <option value="10">约60秒(10镜)</option>
+        </select>
+      </div>
+      <div class="opt"><span>主角性别</span>
+        <select id="gender">
+          <option value="male">男主</option>
+          <option value="female">女主</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn" onclick="generate()">🎬 一键生成脚本</button>
+  </div>
+
+  <div id="out"></div>
+</div>
+
+<script>
+// ===== 风格提示词库 =====
+const STYLES = {
+  guofeng:  { cn:"国风水墨", en:"Chinese ink painting style, traditional guofeng, elegant flowing lines, misty mountains, silk texture" },
+  xianxia:  { cn:"仙侠玄幻", en:"xianxia fantasy style, ethereal immortal aura, glowing spiritual energy, floating petals, celestial light" },
+  cyber:    { cn:"赛博朋克", en:"cyberpunk style, neon lights, rainy night city, holographic signs, high-tech low-life atmosphere" },
+  anime:    { cn:"日系二次元", en:"Japanese anime style, cel shading, vibrant colors, detailed eyes, dynamic composition" },
+  "3d":     { cn:"3D国漫", en:"3D animated movie style, cinematic lighting, detailed character model, soft global illumination" },
+  realistic:{ cn:"写实电影感", en:"photorealistic cinematic style, dramatic lighting, film grain, shallow depth of field, 8k detail" }
+};
+
+// ===== 经典"逆袭/抽卡"漫剧节奏模板（钩子-冲突-高潮-反转-爽点）=====
+const BEATS = [
+  { tag:"开场钩子",  desc:"主角处于人生低谷，环境压抑，3秒内抓住眼球", cam:"特写主角失落的脸，背景虚化", emo:"压抑、不甘", n:"旁白：所有人都说他这辈子完了。" },
+  { tag:"日常困境",  desc:"展现主角被嘲笑、被看不起的处境", cam:"中景，周围人鄙视的目光", emo:"屈辱", n:"台词：「就你？也配？」" },
+  { tag:"转机出现",  desc:"神秘事件/抽卡/奇遇降临，画面出现异象", cam:"仰拍，光芒从天而降", emo:"震惊、好奇", n:"旁白：直到那一天，命运齿轮开始转动。" },
+  { tag:"获得力量",  desc:"主角获得神器/卡牌/能力，全身爆发能量", cam:"环绕镜头，能量光效缠绕全身", emo:"觉醒、爽", n:"音效：轰——！" },
+  { tag:"初试锋芒",  desc:"主角小试身手，震慑围观者", cam:"动态运镜，慢动作出招", emo:"霸气", n:"台词：「现在，轮到我说话了。」" },
+  { tag:"强敌对峙",  desc:"更强的反派登场，气氛紧张到极点", cam:"正反打，双方对视", emo:"紧张、压迫", n:"旁白：但真正的考验，才刚刚开始。" },
+  { tag:"高潮反转",  desc:"主角绝境爆发，一举击溃反派", cam:"大全景+爆炸特效，史诗感", emo:"燃、炸裂", n:"台词：「你，根本不配做我的对手。」" },
+  { tag:"逆袭加冕",  desc:"主角站上巅峰，众人臣服", cam:"低角度仰拍英雄站位，光环加身", emo:"王者、爽快", n:"旁白：从今往后，这片天，我说了算。" },
+  { tag:"悬念铺垫",  desc:"留下伏笔，暗示更大的世界", cam:"主角背影走向远方，镜头拉远", emo:"深远", n:"旁白：而这，仅仅是开始……" },
+  { tag:"结尾钩子",  desc:"留下关注引导，吸引追更", cam:"画面定格+标题字幕", emo:"期待", n:"字幕：点赞关注，下集更炸！" }
+];
+
+function generate(){
+  const idea = document.getElementById('idea').value.trim() || "穷小子抽卡逆袭成为大佬";
+  const styleKey = document.getElementById('style').value;
+  const n = parseInt(document.getElementById('dur').value);
+  const gender = document.getElementById('gender').value === 'male' ? "young man, handsome male protagonist" : "young woman, beautiful female protagonist";
+  const style = STYLES[styleKey];
+
+  // 根据时长选取节奏（保证有开头钩子和结尾钩子）
+  let beats;
+  if(n <= 6) beats = [BEATS[0],BEATS[2],BEATS[3],BEATS[4],BEATS[6],BEATS[9]];
+  else if(n <= 8) beats = [BEATS[0],BEATS[1],BEATS[2],BEATS[3],BEATS[4],BEATS[6],BEATS[7],BEATS[9]];
+  else beats = BEATS.slice();
+
+  let html = `<div class="card"><div class="toolbar">
+      <button onclick="copyAll()">📋 复制全部提示词</button>
+      <button onclick="window.print()">🖨️ 打印/存PDF</button>
+    </div>
+    <h3 style="color:#ffd700">📖 《${idea}》</h3>
+    <p class="meta">风格：${style.cn} ｜ 共 ${beats.length} 个镜头 ｜ 约 ${Math.round(beats.length*6)} 秒</p></div>`;
+
+  let allPrompts = [];
+  beats.forEach((b,i)=>{
+    const prompt = `${style.en}, ${gender}, ${b.desc}, ${b.cam}, cinematic, highly detailed, 9:16 vertical composition --ar 9:16`;
+    allPrompts.push(`【镜头${i+1}】${prompt}`);
+    html += `<div class="shot">
+      <h3>镜头 ${i+1} · ${b.tag} <span class="meta">(约6秒)</span></h3>
+      <div class="field"><b>🎞️ 画面：</b>${b.desc}</div>
+      <div class="field"><b>📷 运镜：</b>${b.cam}</div>
+      <div class="field"><b>😀 情绪：</b>${b.emo}</div>
+      <div class="field"><b>🎙️ 台词/旁白：</b>${b.n}</div>
+      <div class="field"><b>🖼️ 出图提示词：</b>
+        <button class="copy" onclick="copyOne(this)">复制</button>
+        <div class="prompt-box">${prompt}</div>
+      </div>
+    </div>`;
+  });
+
+  window._allPrompts = allPrompts.join("\n\n");
+  html += `<div class="tip">💡 用法：把每个镜头的"出图提示词"复制到可灵/即梦/Midjourney 出图；
+    出完图后把图片按顺序拼起来，配上台词字幕和背景音乐即可。竖屏 9:16 适合抖音/视频号。</div>`;
+
+  document.getElementById('out').innerHTML = html;
+  document.getElementById('out').scrollIntoView({behavior:'smooth'});
+}
+
+function copyOne(btn){
+  const txt = btn.nextElementSibling.innerText;
+  navigator.clipboard.writeText(txt).then(()=>{ btn.innerText="已复制✓"; setTimeout(()=>btn.innerText="复制",1500); });
+}
+function copyAll(){
+  navigator.clipboard.writeText(window._allPrompts||"").then(()=>alert("已复制全部提示词！"));
+}
+</script>
+</body>
+</html>
